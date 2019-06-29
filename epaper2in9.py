@@ -108,7 +108,7 @@ class EPD:
 
     def wait_until_idle(self):
         while self.busy.value() == BUSY:
-            sleep_ms(10) # TODO: make this less?
+            sleep_ms(1) # TODO: make this less?
 
     def reset(self):
         self.rst(0)

@@ -1,6 +1,5 @@
-from uio import IOBase
-from uos import dupterm
-from machine import Pin, SPI, Timer
+import time
+from machine import Pin, SPI#, Timer
 from framebuf import FrameBuffer, MONO_HLSB
 from textbuffer import TextBuffer
 from epaper2in9 import EPD
@@ -15,11 +14,10 @@ font_height = 8
 cols = screen_width // font_width
 rows = screen_height // font_height
 
-# don't draw after every single character/chunk we receive. debounce instead
-debounce_period = 50
 
-class Screen(IOBase):
+class Screen:
     def __init__(self):
+
         self.textbuffer = TextBuffer(cols, rows)
 
         # make the framebuffer we draw into the size of one line of text as that's all we need
@@ -30,11 +28,11 @@ class Screen(IOBase):
         sck = Pin(18, Pin.OUT)
         mosi = Pin(23, Pin.OUT)
         miso = Pin(19, Pin.IN)
-        spi = SPI(-1, baudrate=20000000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
+        spi = SPI(2, baudrate=80000000, polarity=0, phase=0, sck=sck, mosi=mosi, miso=miso)
 
-        cs = Pin(33, Pin.OUT)
-        dc = Pin(32, Pin.OUT)
-        rst = Pin(19, Pin.OUT)
+        cs = Pin(5, Pin.OUT)
+        dc = Pin(17, Pin.OUT)
+        rst = Pin(27, Pin.OUT)
         busy = Pin(35, Pin.IN)
 
         self.epd = EPD(spi, cs, dc, rst, busy)
@@ -46,14 +44,9 @@ class Screen(IOBase):
         self.mode = 'slow'
         self.set_fast()
 
-        # timer for the debounce
-        self.timer = None
-
         self.running = False
 
-    def read(self, size):
-        # no keyboard input for now
-        return None
+        self.last_change = None
 
     def write(self, byteslike):
         self.textbuffer.write(byteslike)
@@ -82,15 +75,10 @@ class Screen(IOBase):
         self.fb.pixel(font_height - 1 - y, x, 1)
 
     def debounce_update(self):
-        if self.timer:
-            self.timer.deinit()
-        self.timer = Timer(-1)
-        self.timer.init(mode=Timer.ONE_SHOT, period=debounce_period, callback=self.update_screen)
+        self.last_change = time.ticks_ms()
 
     def update_screen(self, tmr=None):
-        if self.timer:
-            self.timer.deinit()
-            self.timer = None
+        self.last_change = None
 
         if not self.running:
             return
@@ -152,15 +140,3 @@ class Screen(IOBase):
         self.textbuffer.clear()
         self.debounce_update()
 
-    def install(self):
-        self.running = True
-        dupterm(screen)
-
-    def uninstall(self):
-        self.running = False
-        dupterm(None)
-        self.clear_screen()
-        self.clear()
-
-screen = Screen()
-screen.install()
